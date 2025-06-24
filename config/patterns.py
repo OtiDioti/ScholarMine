@@ -37,3 +37,32 @@ CONFIG = {
     'supported_extensions': ['.pdf'],
     'output_encoding': 'utf-8'
 }
+
+# Parallel processing configuration
+PARALLEL_CONFIG = {
+    'default_executor': 'process',  # 'process' or 'thread'
+    'max_workers_multiplier': 2,   # multiplier for CPU count
+    'max_absolute_workers': 16,    # hard limit on workers
+    'chunk_size': 1,               # files per worker batch
+    'timeout_per_file': 30,        # seconds per file timeout
+    'memory_limit_mb': 512,        # memory limit per worker (MB)
+}
+
+# Performance tuning based on file characteristics
+PERFORMANCE_PROFILES = {
+    'fast': {
+        'pdf_library_preference': ['pymupdf', 'pypdf2', 'pdfplumber'],
+        'max_workers': 8,
+        'timeout': 15
+    },
+    'accurate': {
+        'pdf_library_preference': ['pdfplumber', 'pymupdf', 'pypdf2'],
+        'max_workers': 4,
+        'timeout': 60
+    },
+    'balanced': {
+        'pdf_library_preference': ['pymupdf', 'pdfplumber', 'pypdf2'],
+        'max_workers': 6,
+        'timeout': 30
+    }
+}
