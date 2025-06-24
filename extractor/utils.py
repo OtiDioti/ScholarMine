@@ -33,7 +33,7 @@ def process_single_pdf(pdf_file: Path) -> Dict[str, Any]:
         pdf_file: Path to the PDF file to process
         
     Returns:
-        Dict containing success status, data (list of entries), and error information
+        Dict containing success status, data, and error information
     """
     from extractor.pdf_processor import PDFProcessor
     from extractor.pattern_matcher import PatternMatcher
@@ -59,28 +59,17 @@ def process_single_pdf(pdf_file: Path) -> Dict[str, Any]:
         text = pdf_processor.extract_text(pdf_file)
         if not text.strip():
             result['error'] = "No text extracted from PDF"
-            result['data'] = [{
-                'filename': pdf_file.name,
-                'orcid': '',
-                'google_scholar': ''
-            }]
-            result['success'] = True  # Still successful, just no content
             return result
         
-        # Extract information - returns list of entries
-        extracted_entries = pattern_matcher.extract_info(text, pdf_file.name)
+        # Extract information
+        extracted_info = pattern_matcher.extract_info(text, pdf_file.name)
         
         result['success'] = True
-        result['data'] = extracted_entries
-        logger.debug(f"Successfully processed {pdf_file.name} - {len(extracted_entries)} entries found")
+        result['data'] = extracted_info
+        logger.debug(f"Successfully processed {pdf_file.name}")
         
     except Exception as e:
         result['error'] = str(e)
-        result['data'] = [{
-            'filename': pdf_file.name,
-            'orcid': '',
-            'google_scholar': ''
-        }]
         logger.error(f"Error processing {pdf_file.name}: {str(e)}")
     
     return result
