@@ -80,3 +80,6 @@ Check `pdf_extractor.log` for detailed processing information and errors.
 2. Create a feature branch
 3. Add tests for new patterns
 4. Submit a pull request
+
+## License
+MIT License
