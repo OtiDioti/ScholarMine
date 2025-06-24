@@ -1,16 +1,15 @@
+```markdown
 # PDF Applicant Information Extractor
 
-A Python tool for automatically extracting applicant information (Name, ORCID, Google Scholar links) from PDF files for PhD and postdoc position applications with **parallel processing** and **multi-record extraction** for high performance.
+A Python tool for automatically extracting applicant information (Name, ORCID, Google Scholar links) from PDF files for PhD and postdoc position applications with **parallel processing** for high performance.
 
 ## Features
 
 - **🚀 Parallel Processing**: Process multiple PDFs simultaneously for faster extraction
-- **👥 Multi-Record Extraction**: Extract multiple applicant records from single PDF files
 - **📄 Format Flexibility**: Handles PDFs with varying formats and structures
 - **🔧 Multiple PDF Libraries**: Support for pdfplumber, PyMuPDF, and PyPDF2
-- **🎯 Smart Association**: Intelligently matches names with their ORCID/Google Scholar URLs
 - **🎯 Robust Pattern Matching**: Advanced regex patterns for information extraction
-- **📊 CSV Output**: Clean, structured data export with multiple records per file
+- **📊 CSV Output**: Clean, structured data export
 - **📝 Comprehensive Logging**: Detailed logging with parallel execution tracking
 - **⚙️ Configurable**: Customizable patterns and processing parameters
 
@@ -80,25 +79,6 @@ The tool generates a CSV file with the following columns:
 - `name`: Extracted applicant name
 - `orcid`: ORCID identifier (full URL format)
 - `google_scholar`: Google Scholar profile URL
-- `record_number`: Sequential number for multiple records from the same file
-
-### Multiple Records Per File
-**NEW**: The tool now extracts **multiple applicant records** from each PDF file. If a PDF contains information about multiple people (e.g., multiple ORCID IDs or Google Scholar URLs), each person gets a separate row in the CSV output.
-
-#### Example Output:
-```csv
-filename,name,orcid,google_scholar,record_number
-application1.pdf,John Smith,https://orcid.org/0000-0000-0000-0001,https://scholar.google.com/citations?user=abc123,1
-application1.pdf,Jane Doe,https://orcid.org/0000-0000-0000-0002,,2
-application2.pdf,Bob Johnson,,https://scholar.google.com/citations?user=def456,1
-application3.pdf,Alice Brown,https://orcid.org/0000-0000-0000-0003,https://scholar.google.com/citations?user=ghi789,1
-```
-
-#### Smart Association Logic:
-- **Proximity matching**: Names are associated with nearby ORCID/Google Scholar URLs in the text
-- **Multiple people**: If multiple ORCIDs are found, separate records are created
-- **Unmatched IDs**: ORCID/Google Scholar URLs without associated names are still captured
-- **Flexible extraction**: Handles varying document formats and layouts
 
 ## Architecture
 
