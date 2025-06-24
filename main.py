@@ -66,8 +66,9 @@ def main():
     
     # Process files in parallel
     start_time = time.time()
-    results = []
+    all_records = []  # Will contain all individual records from all files
     failed_files = []
+    total_records = 0
     
     try:
         with executor_class(max_workers=max_workers) as executor:
@@ -84,8 +85,13 @@ def main():
                 try:
                     result = future.result()
                     if result['success']:
-                        results.append(result['data'])
-                        logger.info(f"[{i}/{len(pdf_files)}] Successfully processed {pdf_file.name}")
+                        # Add all records from this file to our collection
+                        file_records = result['data']
+                        all_records.extend(file_records)
+                        total_records += result['record_count']
+                        
+                        logger.info(f"[{i}/{len(pdf_files)}] Successfully processed {pdf_file.name} "
+                                  f"({result['record_count']} records found)")
                     else:
                         failed_files.append(pdf_file.name)
                         logger.warning(f"[{i}/{len(pdf_files)}] Failed to process {pdf_file.name}: {result['error']}")
@@ -96,7 +102,8 @@ def main():
                 
                 # Progress update
                 if i % 10 == 0 or i == len(pdf_files):
-                    logger.info(f"Progress: {i}/{len(pdf_files)} files processed")
+                    logger.info(f"Progress: {i}/{len(pdf_files)} files processed, "
+                              f"{total_records} total records extracted")
     
     except KeyboardInterrupt:
         logger.info("Processing interrupted by user")
@@ -108,19 +115,22 @@ def main():
     processing_time = time.time() - start_time
     
     # Create DataFrame and save results
-    if results:
-        df = pd.DataFrame(results)
+    if all_records:
+        df = pd.DataFrame(all_records)
         df.to_csv(args.output_file, index=False)
-        logger.info(f"Saved {len(results)} records to {args.output_file}")
+        logger.info(f"Saved {len(all_records)} records to {args.output_file}")
         
         # Print summary
         print(f"\nProcessing Summary:")
-        print(f"Total files: {len(pdf_files)}")
-        print(f"Successfully processed: {len(results)}")
+        print(f"Total files processed: {len(pdf_files)}")
+        print(f"Successfully processed: {len(pdf_files) - len(failed_files)}")
         print(f"Failed: {len(failed_files)}")
+        print(f"Total records extracted: {len(all_records)}")
+        print(f"Average records per file: {len(all_records)/(len(pdf_files) - len(failed_files)):.2f}")
         print(f"Processing time: {processing_time:.2f} seconds")
         print(f"Average time per file: {processing_time/len(pdf_files):.2f} seconds")
         print(f"Files per second: {len(pdf_files)/processing_time:.2f}")
+        print(f"Records per second: {len(all_records)/processing_time:.2f}")
         
         if failed_files:
             print(f"Failed files: {', '.join(failed_files)}")
