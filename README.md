@@ -1,4 +1,4 @@
-```markdown
+
 # PDF Applicant Information Extractor
 
 A Python tool for automatically extracting applicant information (Name, ORCID, Google Scholar links) from PDF files for PhD and postdoc position applications with **parallel processing** for high performance.
