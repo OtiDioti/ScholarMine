@@ -7,5 +7,20 @@ pdfplumber>=0.7.0
 PyMuPDF>=1.20.0
 PyPDF2>=3.0.0
 
-# Optional: for better text cleaning
+# Parallel processing and performance
+psutil>=5.8.0           # System resource monitoring
+multiprocess>=0.70.12   # Enhanced multiprocessing
+tqdm>=4.60.0           # Progress bars (optional)
+
+# Optional: for better text cleaning and processing
 python-dateutil>=2.8.0
+regex>=2021.0.0        # Enhanced regex support
+
+# Optional: for advanced PDF processing
+pymupdf-fonts>=1.0.0   # Additional fonts for PyMuPDF
+python-magic>=0.4.0    # File type detection (optional)
+
+# Development and testing (optional)
+pytest>=6.0.0          # For running tests
+black>=21.0.0          # Code formatting
+flake8>=3.8.0          # Code linting
