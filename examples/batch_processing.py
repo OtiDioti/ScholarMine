@@ -22,15 +22,18 @@ def benchmark_processing(pdf_files, max_workers=None):
     # Sequential processing
     print("\n📊 Sequential Processing...")
     start_time = time.time()
-    sequential_results = []
+    sequential_records = []
     for pdf_file in pdf_files[:5]:  # Test with first 5 files
         result = process_single_pdf(pdf_file)
-        sequential_results.append(result)
+        if result['success']:
+            sequential_records.extend(result['data'])  # Extend with all records from file
     sequential_time = time.time() - start_time
     results['sequential'] = {
         'time': sequential_time,
-        'files_per_second': len(sequential_results) / sequential_time,
-        'results': sequential_results
+        'files_per_second': 5 / sequential_time,
+        'records_per_second': len(sequential_records) / sequential_time,
+        'total_records': len(sequential_records),
+        'results': sequential_records
     }
     
     # Parallel processing with different configurations
@@ -44,7 +47,7 @@ def benchmark_processing(pdf_files, max_workers=None):
             executor_class = ThreadPoolExecutor if executor_type == 'thread' else ProcessPoolExecutor
             
             start_time = time.time()
-            parallel_results = []
+            parallel_records = []
             
             with executor_class(max_workers=workers) as executor:
                 future_to_file = {
@@ -54,25 +57,29 @@ def benchmark_processing(pdf_files, max_workers=None):
                 
                 for future in as_completed(future_to_file):
                     result = future.result()
-                    parallel_results.append(result)
+                    if result['success']:
+                        parallel_records.extend(result['data'])  # Extend with all records from file
             
             parallel_time = time.time() - start_time
             
             results[f'{executor_type}_{workers}'] = {
                 'time': parallel_time,
-                'files_per_second': len(parallel_results) / parallel_time,
+                'files_per_second': 5 / parallel_time,
+                'records_per_second': len(parallel_records) / parallel_time,
+                'total_records': len(parallel_records),
                 'speedup': sequential_time / parallel_time,
-                'results': parallel_results
+                'results': parallel_records
             }
     
     # Print benchmark results
     print(f"\n📈 Benchmark Results:")
-    print(f"{'Method':<20} {'Time (s)':<10} {'Files/s':<10} {'Speedup':<10}")
-    print("-" * 50)
+    print(f"{'Method':<20} {'Time (s)':<10} {'Files/s':<10} {'Records/s':<12} {'Records':<10} {'Speedup':<10}")
+    print("-" * 80)
     
     for method, data in results.items():
         speedup = data.get('speedup', 1.0)
-        print(f"{method:<20} {data['time']:<10.2f} {data['files_per_second']:<10.2f} {speedup:<10.2f}x")
+        print(f"{method:<20} {data['time']:<10.2f} {data['files_per_second']:<10.2f} "
+              f"{data['records_per_second']:<12.2f} {data['total_records']:<10} {speedup:<10.2f}x")
     
     return results
 
@@ -86,7 +93,7 @@ def process_with_profile(pdf_files, profile_name='balanced'):
     print(f"Timeout: {profile['timeout']}s")
     
     start_time = time.time()
-    results = []
+    all_records = []
     failed_files = []
     
     with ProcessPoolExecutor(max_workers=profile['max_workers']) as executor:
@@ -100,7 +107,7 @@ def process_with_profile(pdf_files, profile_name='balanced'):
             try:
                 result = future.result()
                 if result['success']:
-                    results.append(result['data'])
+                    all_records.extend(result['data'])  # Extend with all records from file
                 else:
                     failed_files.append(pdf_file.name)
             except Exception as e:
@@ -110,11 +117,14 @@ def process_with_profile(pdf_files, profile_name='balanced'):
     processing_time = time.time() - start_time
     
     print(f"\n✅ Profile Processing Complete:")
-    print(f"Processed: {len(results)}/{len(pdf_files)} files")
+    print(f"Processed: {len(pdf_files) - len(failed_files)}/{len(pdf_files)} files")
+    print(f"Total records extracted: {len(all_records)}")
+    print(f"Average records per file: {len(all_records)/(len(pdf_files) - len(failed_files)):.2f}")
     print(f"Time: {processing_time:.2f} seconds")
     print(f"Rate: {len(pdf_files)/processing_time:.2f} files/second")
+    print(f"Record rate: {len(all_records)/processing_time:.2f} records/second")
     
-    return results, failed_files
+    return all_records, failed_files
 
 def adaptive_processing(pdf_files):
     """Adaptively choose processing parameters based on workload"""
@@ -141,7 +151,7 @@ def adaptive_processing(pdf_files):
     executor_class = ThreadPoolExecutor if executor_type == 'thread' else ProcessPoolExecutor
     
     start_time = time.time()
-    results = []
+    all_records = []
     
     with executor_class(max_workers=workers) as executor:
         future_to_file = {
@@ -153,7 +163,7 @@ def adaptive_processing(pdf_files):
             try:
                 result = future.result()
                 if result['success']:
-                    results.append(result['data'])
+                    all_records.extend(result['data'])  # Extend with all records from file
                 
                 # Progress updates
                 if i % 10 == 0 or i == num_files:
@@ -161,15 +171,15 @@ def adaptive_processing(pdf_files):
                     rate = i / elapsed
                     eta = (num_files - i) / rate if rate > 0 else 0
                     print(f"Progress: {i}/{num_files} ({i/num_files*100:.1f}%) - "
-                          f"Rate: {rate:.1f} files/s - ETA: {eta:.0f}s")
+                          f"Rate: {rate:.1f} files/s - Records: {len(all_records)} - ETA: {eta:.0f}s")
                           
             except Exception as e:
                 print(f"❌ Processing error: {str(e)}")
     
     processing_time = time.time() - start_time
-    print(f"\n✅ Adaptive processing complete: {len(results)} files in {processing_time:.2f}s")
+    print(f"\n✅ Adaptive processing complete: {len(all_records)} records from {num_files} files in {processing_time:.2f}s")
     
-    return results
+    return all_records
 
 def main():
     parser = argparse.ArgumentParser(description='Batch processing examples')
@@ -199,18 +209,18 @@ def main():
     if args.mode == 'benchmark':
         benchmark_processing(pdf_files)
     elif args.mode == 'profile':
-        results, failed = process_with_profile(pdf_files, args.profile)
-        if results:
-            df = pd.DataFrame(results)
+        all_records, failed = process_with_profile(pdf_files, args.profile)
+        if all_records:
+            df = pd.DataFrame(all_records)
             output_file = f"batch_results_{args.profile}.csv"
             df.to_csv(output_file, index=False)
-            print(f"💾 Saved results to {output_file}")
+            print(f"💾 Saved {len(all_records)} records to {output_file}")
     elif args.mode == 'adaptive':
-        results = adaptive_processing(pdf_files)
-        if results:
-            df = pd.DataFrame(results)
+        all_records = adaptive_processing(pdf_files)
+        if all_records:
+            df = pd.DataFrame(all_records)
             df.to_csv("adaptive_results.csv", index=False)
-            print(f"💾 Saved results to adaptive_results.csv")
+            print(f"💾 Saved {len(all_records)} records to adaptive_results.csv")
 
 if __name__ == "__main__":
     main()
