@@ -1,27 +1,64 @@
 """
-Enhanced pattern matching for extracting structured information from PDFs.
+Optimized streaming pattern matcher with early termination and caching.
 """
 
 import re
 import logging
-from typing import Dict, List, Optional, Set
+import time
+from typing import Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse, parse_qs
 from itertools import product
+from dataclasses import dataclass
+from functools import lru_cache
 
 from config.patterns import PATTERNS, CONFIG
 
 logger = logging.getLogger(__name__)
 
-class PatternMatcher:
-    """Enhanced pattern matcher with hyperlink integration and validation."""
+@dataclass
+class MatchResult:
+    """Container for pattern matching results."""
+    orcids: List[str]
+    scholars: List[str]
+    processing_time: float
+    patterns_matched: Dict[str, int]
+    early_terminated: bool
+
+class OptimizedPatternMatcher:
+    """Optimized pattern matcher with streaming and caching capabilities."""
     
-    def __init__(self):
+    def __init__(self, config: Dict):
+        self.config = config
         self.patterns = PATTERNS
-        self.config = CONFIG
+        self.enable_early_termination = config.get('early_termination', False)
+        self.early_stop_threshold = config.get('early_stop_threshold', 3)
+        
+        # Compile patterns for better performance
+        self.compiled_patterns = self._compile_patterns()
+        
+        # Cache for repeated patterns
+        self._validation_cache = {}
+        
+        logger.debug(f"🔍 Pattern matcher initialized with {len(self.compiled_patterns['orcid'])} ORCID patterns")
+        logger.debug(f"🔍 Early termination: {self.enable_early_termination}")
     
-    def extract_info(self, text: str, filename: str, hyperlinks: List[str] = None) -> List[Dict[str, str]]:
+    def _compile_patterns(self) -> Dict[str, Dict[str, re.Pattern]]:
+        """Compile all patterns for better performance."""
+        compiled = {'orcid': {}, 'google_scholar': {}}
+        
+        for pattern_type in ['orcid', 'google_scholar']:
+            for pattern_name, pattern in self.patterns[pattern_type].items():
+                try:
+                    compiled[pattern_type][pattern_name] = re.compile(pattern, re.IGNORECASE)
+                except re.error as e:
+                    logger.warning(f"❌ Failed to compile pattern {pattern_name}: {e}")
+        
+        return compiled
+    
+    def extract_info_streaming(self, text: str, filename: str, 
+                              hyperlinks: List[str] = None) -> Tuple[List[Dict[str, str]], MatchResult]:
         """
-        Extract information from both text and hyperlinks.
+        Streaming extraction with early termination and optimization.
         
         Args:
             text: Text content from PDF
@@ -29,128 +66,143 @@ class PatternMatcher:
             hyperlinks: List of hyperlinks extracted from PDF
             
         Returns:
-            List of entries with filename, orcid, and google_scholar
+            Tuple of (entries, match_result)
         """
+        start_time = time.time()
+        
         if hyperlinks is None:
             hyperlinks = []
         
-        # Clean and normalize text
-        cleaned_text = self._clean_text(text)
+        # Initialize tracking
+        found_orcids = set()
+        found_scholars = set()
+        patterns_matched = {'orcid': {}, 'google_scholar': {}}
+        early_terminated = False
         
-        # Extract from text
-        text_orcids = self._extract_orcids_from_text(cleaned_text)
-        text_scholars = self._extract_scholars_from_text(cleaned_text)
+        # Process hyperlinks first (usually more reliable)
+        link_orcids, link_scholars = self._extract_from_hyperlinks_optimized(hyperlinks)
+        found_orcids.update(link_orcids)
+        found_scholars.update(link_scholars)
         
-        # Extract from hyperlinks
-        link_orcids = self._extract_orcids_from_links(hyperlinks)
-        link_scholars = self._extract_scholars_from_links(hyperlinks)
+        # Check for early termination after hyperlinks
+        if self.enable_early_termination and len(found_orcids) + len(found_scholars) >= self.early_stop_threshold:
+            early_terminated = True
+        else:
+            # Process text in chunks for better memory usage
+            text_orcids, text_scholars, text_patterns = self._extract_from_text_streaming(text, early_terminated)
+            found_orcids.update(text_orcids)
+            found_scholars.update(text_scholars)
+            
+            # Update pattern statistics
+            for pattern_type in ['orcid', 'google_scholar']:
+                patterns_matched[pattern_type].update(text_patterns.get(pattern_type, {}))
         
-        # Combine and deduplicate
-        all_orcids = self._deduplicate_urls(text_orcids + link_orcids)
-        all_scholars = self._deduplicate_urls(text_scholars + link_scholars)
+        # Deduplicate and validate
+        final_orcids = self._deduplicate_and_validate_orcids(list(found_orcids))
+        final_scholars = self._deduplicate_and_validate_scholars(list(found_scholars))
+        
+        # Create match result
+        match_result = MatchResult(
+            orcids=final_orcids,
+            scholars=final_scholars,
+            processing_time=time.time() - start_time,
+            patterns_matched=patterns_matched,
+            early_terminated=early_terminated
+        )
         
         # Create entries
-        entries = self._create_entries(filename, all_orcids, all_scholars)
+        entries = self._create_entries_optimized(filename, final_orcids, final_scholars)
         
-        logger.debug(f"📊 {filename}: {len(all_orcids)} ORCIDs, {len(all_scholars)} Scholar URLs")
+        logger.debug(f"📊 {filename}: {len(final_orcids)} ORCIDs, {len(final_scholars)} Scholar URLs "
+                    f"(early_stop: {early_terminated})")
         
-        return entries
+        return entries, match_result
     
-    def _clean_text(self, text: str) -> str:
-        """Clean and normalize text for better pattern matching."""
+    def _extract_from_hyperlinks_optimized(self, hyperlinks: List[str]) -> Tuple[List[str], List[str]]:
+        """Optimized hyperlink extraction."""
+        orcids = set()
+        scholars = set()
+        
+        for link in hyperlinks:
+            if not link or not isinstance(link, str):
+                continue
+            
+            link_lower = link.lower()
+            
+            # Fast path for common cases
+            if 'orcid.org' in link_lower:
+                orcid = self._normalize_orcid_from_link(link)
+                if orcid:
+                    orcids.add(orcid)
+            elif 'scholar.google' in link_lower:
+                scholar = self._normalize_scholar_from_link(link)
+                if scholar:
+                    scholars.add(scholar)
+        
+        return list(orcids), list(scholars)
+    
+    def _extract_from_text_streaming(self, text: str, early_terminated: bool) -> Tuple[Set[str], Set[str], Dict]:
+        """Stream text processing with early termination."""
+        if early_terminated or not text:
+            return set(), set(), {}
+        
+        # Clean text once
+        cleaned_text = self._clean_text_optimized(text)
+        
+        orcids = set()
+        scholars = set()
+        patterns_matched = {'orcid': {}, 'google_scholar': {}}
+        
+        # Process ORCID patterns
+        for pattern_name, compiled_pattern in self.compiled_patterns['orcid'].items():
+            matches = compiled_pattern.findall(cleaned_text)
+            patterns_matched['orcid'][pattern_name] = len(matches)
+            
+            for match in matches:
+                if isinstance(match, tuple):
+                    match = match[0] if match[0] else (match[1] if len(match) > 1 else "")
+                
+                orcid = self._normalize_orcid(match)
+                if orcid:
+                    orcids.add(orcid)
+                    
+                    # Early termination check
+                    if self.enable_early_termination and len(orcids) >= self.early_stop_threshold:
+                        break
+        
+        # Process Scholar patterns if not early terminated
+        if not (self.enable_early_termination and len(orcids) >= self.early_stop_threshold):
+            for pattern_name, compiled_pattern in self.compiled_patterns['google_scholar'].items():
+                matches = compiled_pattern.findall(cleaned_text)
+                patterns_matched['google_scholar'][pattern_name] = len(matches)
+                
+                for match in matches:
+                    if isinstance(match, tuple):
+                        match = match[0] if match[0] else (match[1] if len(match) > 1 else "")
+                    
+                    scholar = self._normalize_scholar_url(match)
+                    if scholar:
+                        scholars.add(scholar)
+                        
+                        # Early termination check
+                        if self.enable_early_termination and len(orcids) + len(scholars) >= self.early_stop_threshold:
+                            break
+        
+        return orcids, scholars, patterns_matched
+    
+    def _clean_text_optimized(self, text: str) -> str:
+        """Optimized text cleaning."""
         if not text:
             return ""
         
-        # Normalize whitespace
+        # More efficient cleaning
         text = re.sub(r'\s+', ' ', text)
-        
-        # Remove problematic characters but keep URL-relevant ones
         text = re.sub(r'[^\w\s\-@.:/?=&_]', ' ', text)
-        
-        # Fix common PDF extraction issues
-        text = re.sub(r'(\w)([A-Z])', r'\1 \2', text)  # Add space before capitals
-        text = re.sub(r'([a-z])(\d)', r'\1 \2', text)  # Add space before numbers
-        
         return text.strip()
     
-    def _extract_orcids_from_text(self, text: str) -> List[str]:
-        """Extract ORCID URLs from text using multiple patterns."""
-        orcids = set()
-        
-        for pattern_name, pattern in self.patterns['orcid'].items():
-            try:
-                matches = re.findall(pattern, text, re.IGNORECASE)
-                for match in matches:
-                    # Handle different match formats
-                    if isinstance(match, tuple):
-                        match = match[0] if match[0] else (match[1] if len(match) > 1 else "")
-                    
-                    orcid = self._normalize_orcid(match)
-                    if orcid and self._is_valid_orcid(orcid):
-                        orcids.add(orcid)
-                        logger.debug(f"Found ORCID via {pattern_name}: {orcid}")
-                        
-            except Exception as e:
-                logger.debug(f"Error with ORCID pattern {pattern_name}: {str(e)}")
-        
-        return list(orcids)
-    
-    def _extract_scholars_from_text(self, text: str) -> List[str]:
-        """Extract Google Scholar URLs from text."""
-        scholars = set()
-        
-        for pattern_name, pattern in self.patterns['google_scholar'].items():
-            try:
-                matches = re.findall(pattern, text, re.IGNORECASE)
-                for match in matches:
-                    # Handle different match formats
-                    if isinstance(match, tuple):
-                        match = match[0] if match[0] else (match[1] if len(match) > 1 else "")
-                    
-                    scholar_url = self._normalize_scholar_url(match)
-                    if scholar_url and self._is_valid_scholar_url(scholar_url):
-                        scholars.add(scholar_url)
-                        logger.debug(f"Found Scholar via {pattern_name}: {scholar_url}")
-                        
-            except Exception as e:
-                logger.debug(f"Error with Scholar pattern {pattern_name}: {str(e)}")
-        
-        return list(scholars)
-    
-    def _extract_orcids_from_links(self, hyperlinks: List[str]) -> List[str]:
-        """Extract ORCID URLs from hyperlink list."""
-        orcids = set()
-        
-        for link in hyperlinks:
-            if not link or not isinstance(link, str):
-                continue
-            
-            if 'orcid.org' in link.lower():
-                orcid = self._normalize_orcid(link)
-                if orcid and self._is_valid_orcid(orcid):
-                    orcids.add(orcid)
-                    logger.debug(f"Found ORCID in hyperlink: {orcid}")
-        
-        return list(orcids)
-    
-    def _extract_scholars_from_links(self, hyperlinks: List[str]) -> List[str]:
-        """Extract Google Scholar URLs from hyperlink list."""
-        scholars = set()
-        
-        for link in hyperlinks:
-            if not link or not isinstance(link, str):
-                continue
-            
-            if 'scholar.google' in link.lower():
-                scholar_url = self._normalize_scholar_url(link)
-                if scholar_url and self._is_valid_scholar_url(scholar_url):
-                    scholars.add(scholar_url)
-                    logger.debug(f"Found Scholar in hyperlink: {scholar_url}")
-        
-        return list(scholars)
-    
+    @lru_cache(maxsize=1000)
     def _normalize_orcid(self, orcid_text: str) -> str:
-        """Normalize ORCID to standard format."""
+        """Cached ORCID normalization."""
         if not orcid_text:
             return ""
         
@@ -162,8 +214,21 @@ class PatternMatcher:
         
         return ""
     
+    def _normalize_orcid_from_link(self, link: str) -> str:
+        """Normalize ORCID from hyperlink."""
+        if not link:
+            return ""
+        
+        # Extract ORCID ID from URL
+        orcid_match = re.search(r'orcid\.org/(\d{4}-\d{4}-\d{4}-\d{3}[\dX])', link, re.IGNORECASE)
+        if orcid_match:
+            return f"https://orcid.org/{orcid_match.group(1)}"
+        
+        return ""
+    
+    @lru_cache(maxsize=1000)
     def _normalize_scholar_url(self, url_text: str) -> str:
-        """normalize Google Scholar URL."""
+        """Cached Scholar URL normalization."""
         if not url_text:
             return ""
         
@@ -178,28 +243,62 @@ class PatternMatcher:
         
         # Basic validation and cleanup
         if 'scholar.google' in url and 'citations' in url:
-            # Remove fragments and clean up
-            url = url.split('#')[0]
+            url = url.split('#')[0]  # Remove fragments
             return url
         
         return ""
     
-    def _is_valid_orcid(self, orcid: str) -> bool:
-        """Validate ORCID format and basic structure."""
+    def _normalize_scholar_from_link(self, link: str) -> str:
+        """Normalize Scholar URL from hyperlink."""
+        if not link or 'scholar.google' not in link.lower() or 'citations' not in link.lower():
+            return ""
+        
+        # Clean up the URL
+        url = link.split('#')[0]  # Remove fragments
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+        
+        return url
+    
+    def _deduplicate_and_validate_orcids(self, orcids: List[str]) -> List[str]:
+        """Deduplicate and validate ORCID URLs."""
+        if not orcids:
+            return []
+        
+        validated = set()
+        for orcid in orcids:
+            if self._is_valid_orcid_cached(orcid):
+                validated.add(orcid)
+        
+        return sorted(list(validated))
+    
+    def _deduplicate_and_validate_scholars(self, scholars: List[str]) -> List[str]:
+        """Deduplicate and validate Scholar URLs."""
+        if not scholars:
+            return []
+        
+        validated = set()
+        for scholar in scholars:
+            if self._is_valid_scholar_url_cached(scholar):
+                validated.add(scholar)
+        
+        return sorted(list(validated))
+    
+    @lru_cache(maxsize=500)
+    def _is_valid_orcid_cached(self, orcid: str) -> bool:
+        """Cached ORCID validation."""
         if not orcid or not orcid.startswith('https://orcid.org/'):
             return False
         
         orcid_id = orcid.replace('https://orcid.org/', '')
-        
-        # Check format: 0000-0000-0000-000X
-        if not re.match(r'^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$', orcid_id):
+        return bool(re.match(r'^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$', orcid_id))
+    
+    @lru_cache(maxsize=500)
+    def _is_valid_scholar_url_cached(self, url: str) -> bool:
+        """Cached Scholar URL validation."""
+        if not url:
             return False
         
-        # Could add checksum validation here if needed
-        return True
-    
-    def _is_valid_scholar_url(self, url: str) -> bool:
-        """Validate Google Scholar URL format."""
         try:
             parsed = urlparse(url)
             if 'scholar.google' not in parsed.netloc:
@@ -208,45 +307,22 @@ class PatternMatcher:
             if 'citations' not in parsed.path:
                 return False
             
-            # Should have user parameter or other valid parameters
             query_params = parse_qs(parsed.query)
             return bool(query_params.get('user') or query_params.get('hl'))
             
         except Exception:
             return False
     
-    def _deduplicate_urls(self, urls: List[str]) -> List[str]:
-        """Remove duplicate URLs, keeping the best version."""
-        if not urls:
-            return []
-        
-        # Use set for basic deduplication, but prefer https over http
-        unique_urls = {}
-        
-        for url in urls:
-            if not url:
-                continue
-            
-            # Normalize for comparison
-            normalized = url.lower().replace('http://', 'https://')
-            
-            # Keep the https version if we have both
-            if normalized not in unique_urls or url.startswith('https://'):
-                unique_urls[normalized] = url
-        
-        return sorted(list(unique_urls.values()))
-    
-    def _create_entries(self, filename: str, orcids: List[str], scholars: List[str]) -> List[Dict[str, str]]:
-        """Create entries for all combinations, with limits."""
+    def _create_entries_optimized(self, filename: str, orcids: List[str], 
+                                scholars: List[str]) -> List[Dict[str, str]]:
+        """Create entries with optimization and limits."""
         entries = []
-        max_entries = self.config.get('max_entries_per_file', 50)
+        max_entries = self.config.get('max_entries_per_file', 20)
         
         if orcids and scholars:
-            # Create combinations but limit total entries
-            combinations = list(product(orcids, scholars))
-            if len(combinations) > max_entries:
-                logger.warning(f"Limiting {filename} to {max_entries} entries (found {len(combinations)} combinations)")
-                combinations = combinations[:max_entries]
+            # Limit combinations to prevent explosion
+            max_combinations = min(len(orcids) * len(scholars), max_entries)
+            combinations = list(product(orcids, scholars))[:max_combinations]
             
             for orcid, scholar in combinations:
                 entries.append({
@@ -279,3 +355,12 @@ class PatternMatcher:
             })
         
         return entries
+    
+    def get_cache_stats(self) -> Dict[str, int]:
+        """Get caching statistics."""
+        return {
+            'orcid_cache_size': self._normalize_orcid.cache_info().currsize,
+            'scholar_cache_size': self._normalize_scholar_url.cache_info().currsize,
+            'orcid_validation_cache_size': self._is_valid_orcid_cached.cache_info().currsize,
+            'scholar_validation_cache_size': self._is_valid_scholar_url_cached.cache_info().currsize,
+        }

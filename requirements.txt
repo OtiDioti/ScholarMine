@@ -1,8 +1,8 @@
 # Core dependencies
 pandas>=2.0.0
-pathlib>=1.0.1
+asyncio>=3.4.3
 
-# PDF processing libraries (install at least one, preferably all)
+# PDF processing libraries (install all for best performance)
 pdfplumber>=0.9.0
 PyMuPDF>=1.23.0
 PyPDF2>=3.0.1
@@ -11,21 +11,24 @@ PyPDF2>=3.0.1
 multiprocess>=0.70.15
 psutil>=5.9.0
 
-# Optional but recommended
-tqdm>=4.65.0              # Progress bars
-python-dateutil>=2.8.2   # Date handling
-regex>=2023.6.3           # Enhanced regex support
+# Caching and optimization
+functools32>=3.2.3;python_version<"3.2"
 
-# System monitoring (optional)
-py-cpuinfo>=9.0.0         # CPU information
+# Progress and monitoring
+tqdm>=4.65.0
+python-dateutil>=2.8.2
 
-# Development and testing (optional)
-pytest>=7.4.0            # Testing framework
-black>=23.7.0            # Code formatting
-flake8>=6.0.0            # Linting
-mypy>=1.5.0              # Type checking
+# Performance profiling (optional)
+memory-profiler>=0.60.0
+line-profiler>=4.0.0
+py-spy>=0.3.14
 
-# Optional: Advanced PDF processing
-pymupdf-fonts>=1.0.5     # Additional fonts for PyMuPDF
-python-magic>=0.4.27     # File type detection
-chardet>=5.2.0           # Character encoding detection
+# System monitoring
+py-cpuinfo>=9.0.0
+GPUtil>=1.4.0
+
+# Development tools (optional)
+pytest>=7.4.0
+black>=23.7.0
+flake8>=6.0.0
+mypy>=1.5.0

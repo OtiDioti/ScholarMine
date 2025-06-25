@@ -1,65 +1,67 @@
 """
-Enhanced utility functions with better error handling and logging.
+Enhanced utility functions with optimization support.
 """
 
 import logging
 import sys
 import os
+import asyncio
+import time
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from multiprocessing import current_process, cpu_count
-import time
+from dataclasses import dataclass
+
+from extractor.pdf_processor import OptimizedPDFProcessor
+from extractor.pattern_matcher import OptimizedPatternMatcher
+from extractor.cache_manager import CacheManager
+
+@dataclass
+class ProcessingResult:
+    """Result container for optimized processing."""
+    success: bool
+    data: Any
+    error: Optional[str]
+    filename: str
+    processing_time: float
+    stats: Dict[str, Any]
 
 def setup_logging(level: str = 'INFO') -> None:
-    """Setup enhanced logging for parallel processing."""
+    """Setup optimized logging."""
     log_level = getattr(logging, level.upper(), logging.INFO)
     
-    # Create formatters
-    detailed_formatter = logging.Formatter(
-        '%(asctime)s - %(processName)s - %(name)s - %(levelname)s - %(message)s'
+    # Create formatter
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
-    simple_formatter = logging.Formatter(
-        '%(asctime)s - %(levelname)s - %(message)s'
-    )
-    
-    # Setup handlers
-    handlers = []
     
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(log_level)
-    console_handler.setFormatter(simple_formatter if level == 'INFO' else detailed_formatter)
-    handlers.append(console_handler)
-    
-    # File handler
-    try:
-        file_handler = logging.FileHandler('pdf_extractor.log', mode='a')
-        file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(detailed_formatter)
-        handlers.append(file_handler)
-    except Exception as e:
-        print(f"Warning: Could not create log file: {e}")
+    console_handler.setFormatter(formatter)
     
     # Configure root logger
     logging.basicConfig(
         level=log_level,
-        handlers=handlers,
+        handlers=[console_handler],
         force=True
     )
+    
+    # Reduce noise from some libraries
+    logging.getLogger('PIL').setLevel(logging.WARNING)
+    logging.getLogger('fitz').setLevel(logging.WARNING)
 
-def process_single_pdf(pdf_file: Path) -> Dict[str, Any]:
+def process_single_pdf_optimized(pdf_file: Path, config: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Enhanced single PDF processing function for parallel execution.
+    Optimized single PDF processing function.
     
     Args:
         pdf_file: Path to the PDF file
+        config: Configuration dictionary
         
     Returns:
-        Dict with success status, data, error info, and stats
+        Dict with processing results and optimization metrics
     """
-    from extractor.pdf_processor import PDFProcessor
-    from extractor.pattern_matcher import PatternMatcher
-    
     logger = logging.getLogger(f"worker.{current_process().name}")
     start_time = time.time()
     
@@ -69,51 +71,93 @@ def process_single_pdf(pdf_file: Path) -> Dict[str, Any]:
         'error': None,
         'filename': pdf_file.name,
         'processing_time': 0,
-        'stats': {}
+        'stats': {
+            'cache_hit': False,
+            'early_terminated': False,
+            'pages_processed': 0,
+            'pages_skipped': 0,
+            'total_pages': 0,
+            'text_length': 0,
+            'hyperlinks_found': 0,
+            'file_size_mb': 0
+        }
     }
     
     try:
-        logger.debug(f"🔄 Processing {pdf_file.name}")
-        
-        # Check file accessibility
+        # File validation
         if not pdf_file.exists() or not pdf_file.is_file():
             raise FileNotFoundError(f"File not accessible: {pdf_file}")
         
-        if pdf_file.stat().st_size == 0:
+        file_size = pdf_file.stat().st_size
+        if file_size == 0:
             raise ValueError("File is empty")
         
+        result['stats']['file_size_mb'] = file_size / (1024 * 1024)
+        
+        # Check cache if enabled
+        cache_manager = None
+        cache_key = None
+        
+        if config.get('enable_cache', False):
+            cache_manager = CacheManager(config.get('cache_size', 1000))
+            cache_key = f"pdf_{cache_manager.get_file_hash(pdf_file)}"
+            
+            cached_result = cache_manager.get(cache_key)
+            if cached_result:
+                result.update(cached_result)
+                result['stats']['cache_hit'] = True
+                result['processing_time'] = time.time() - start_time
+                logger.debug(f"🎯 Cache hit for {pdf_file.name}")
+                return result
+        
         # Initialize processors
-        pdf_processor = PDFProcessor()
-        pattern_matcher = PatternMatcher()
+        pdf_processor = OptimizedPDFProcessor(config)
+        pattern_matcher = OptimizedPatternMatcher(config)
         
-        # Extract text and hyperlinks
-        text, hyperlinks = pdf_processor.extract_text_and_links(pdf_file)
+        # Extract text and hyperlinks with optimization
+        extraction_result = asyncio.run(pdf_processor.extract_text_and_links_optimized(pdf_file))
         
-        # Get extraction stats
-        stats = {
-            'text_length': len(text) if text else 0,
-            'hyperlinks_found': len(hyperlinks) if hyperlinks else 0,
-            'file_size_mb': pdf_file.stat().st_size / (1024 * 1024)
-        }
+        # Update stats from extraction
+        result['stats'].update({
+            'pages_processed': extraction_result.pages_processed,
+            'pages_skipped': extraction_result.pages_skipped,
+            'total_pages': extraction_result.total_pages,
+            'text_length': len(extraction_result.text),
+            'hyperlinks_found': len(extraction_result.hyperlinks),
+            'early_terminated': extraction_result.early_terminated,
+            'cache_hit': extraction_result.cache_hit
+        })
         
         # Extract structured information
-        entries = pattern_matcher.extract_info(text, pdf_file.name, hyperlinks)
+        entries, match_result = pattern_matcher.extract_info_streaming(
+            extraction_result.text, 
+            pdf_file.name, 
+            extraction_result.hyperlinks
+        )
         
-        # Update stats
-        stats.update({
-            'entries_created': len(entries),
-            'has_orcid': any(entry.get('orcid') for entry in entries),
-            'has_scholar': any(entry.get('google_scholar') for entry in entries)
+        # Update stats from pattern matching
+        result['stats'].update({
+            'patterns_matched': match_result.patterns_matched,
+            'match_early_terminated': match_result.early_terminated
         })
         
         result.update({
             'success': True,
-            'data': entries,
-            'stats': stats
+            'data': entries
         })
         
+        # Cache result if enabled
+        if cache_manager and cache_key:
+            cache_data = {
+                'success': True,
+                'data': entries,
+                'stats': result['stats']
+            }
+            cache_manager.set(cache_key, cache_data, pdf_file)
+        
         logger.debug(f"✅ {pdf_file.name}: {len(entries)} entries, "
-                    f"{stats['text_length']} chars, {stats['hyperlinks_found']} links")
+                    f"Pages: {extraction_result.pages_processed}/{extraction_result.total_pages}, "
+                    f"Early stop: {extraction_result.early_terminated}")
         
     except Exception as e:
         error_msg = str(e)
@@ -132,103 +176,64 @@ def process_single_pdf(pdf_file: Path) -> Dict[str, Any]:
 
 def get_optimal_workers(num_files: int, max_workers: Optional[int] = None) -> int:
     """
-    Calculate optimal number of workers based on system resources and workload.
-    
-    Args:
-        num_files: Number of files to process
-        max_workers: Maximum workers limit
-        
-    Returns:
-        Optimal number of workers
+    Calculate optimal number of workers with enhanced logic.
     """
     cpu_cores = cpu_count()
     
-    # Base calculation: consider I/O-bound nature of PDF processing
-    if num_files <= 5:
+    # Enhanced calculation based on workload characteristics
+    if num_files <= 2:
         optimal = min(num_files, 2)
-    elif num_files <= 20:
+    elif num_files <= 10:
         optimal = min(num_files, cpu_cores)
-    else:
+    elif num_files <= 50:
         optimal = min(num_files, cpu_cores * 2)
+    else:
+        # For large batches, consider I/O limitations
+        optimal = min(num_files, cpu_cores * 3, 20)  # Cap at 20
     
-    # Apply limits
+    # Apply user limit
     if max_workers:
         optimal = min(optimal, max_workers)
     
-    # Absolute maximum to prevent resource exhaustion
-    optimal = min(optimal, 16)
-    
     return max(1, optimal)
 
-def validate_files(file_paths: List[Path]) -> List[Path]:
-    """Enhanced file validation with detailed reporting."""
-    valid_files = []
-    invalid_count = 0
-    
-    for file_path in file_paths:
-        try:
-            if not file_path.exists():
-                logging.warning(f"❌ File not found: {file_path}")
-                invalid_count += 1
-                continue
-            
-            if not file_path.is_file():
-                logging.warning(f"❌ Not a file: {file_path}")
-                invalid_count += 1
-                continue
-            
-            if file_path.suffix.lower() != '.pdf':
-                logging.debug(f"⏭️ Skipping non-PDF: {file_path}")
-                invalid_count += 1
-                continue
-            
-            if file_path.stat().st_size == 0:
-                logging.warning(f"❌ Empty file: {file_path}")
-                invalid_count += 1
-                continue
-            
-            valid_files.append(file_path)
-            
-        except Exception as e:
-            logging.error(f"❌ Error checking {file_path}: {e}")
-            invalid_count += 1
-    
-    if invalid_count > 0:
-        logging.info(f"📋 Validation: {len(valid_files)} valid, {invalid_count} invalid files")
-    
-    return valid_files
-
-def estimate_processing_time(num_files: int, workers: int, 
-                           avg_time_per_file: float = 2.5) -> Dict[str, float]:
+def estimate_processing_time_optimized(num_files: int, workers: int, 
+                                     config: Dict[str, Any]) -> Dict[str, float]:
     """
-    Estimate processing time with confidence intervals.
-    
-    Returns:
-        Dict with time estimates
+    Enhanced processing time estimation with optimization factors.
     """
-    if workers <= 0 or num_files <= 0:
-        return {'estimated_time': 0, 'min_time': 0, 'max_time': 0}
+    base_time_per_file = 2.0  # Base time per file
     
-    # Base estimate
-    base_time = (num_files * avg_time_per_file) / workers
+    # Adjust based on optimizations
+    if config.get('enable_cache', False):
+        base_time_per_file *= 0.7  # 30% speedup with cache
     
-    # Add overhead for parallel processing
-    overhead = min(10, num_files * 0.1)  # Up to 10 seconds overhead
+    if config.get('early_termination', False):
+        base_time_per_file *= 0.8  # 20% speedup with early termination
+    
+    if config.get('page_parallel', False):
+        base_time_per_file *= 0.9  # 10% speedup with page parallelization
+    
+    # Calculate estimates
+    base_time = (num_files * base_time_per_file) / workers
+    overhead = min(5, num_files * 0.05)  # Reduced overhead
     
     estimated_time = base_time + overhead
-    min_time = estimated_time * 0.7  # Best case
-    max_time = estimated_time * 1.5  # Worst case
+    min_time = estimated_time * 0.6  # Better best case
+    max_time = estimated_time * 1.3  # Better worst case
     
     return {
         'estimated_time': estimated_time,
         'min_time': min_time,
         'max_time': max_time,
-        'files_per_second': workers / avg_time_per_file
+        'files_per_second': workers / base_time_per_file
     }
 
 def format_time(seconds: float) -> str:
     """Format seconds into human-readable time."""
-    if seconds < 60:
+    if seconds < 1:
+        return f"{seconds*1000:.0f}ms"
+    elif seconds < 60:
         return f"{seconds:.1f}s"
     elif seconds < 3600:
         minutes = seconds / 60
@@ -237,21 +242,52 @@ def format_time(seconds: float) -> str:
         hours = seconds / 3600
         return f"{hours:.1f}h"
 
-def get_system_info() -> Dict[str, Any]:
-    """Get system information for optimization."""
-    import psutil
-    
+def get_system_resources() -> Dict[str, Any]:
+    """Get system resource information for optimization."""
     try:
+        import psutil
+        
+        cpu_percent = psutil.cpu_percent(interval=1)
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage('.')
+        
         return {
             'cpu_count': cpu_count(),
-            'memory_gb': psutil.virtual_memory().total / (1024**3),
-            'disk_free_gb': psutil.disk_usage('.').free / (1024**3),
+            'cpu_usage_percent': cpu_percent,
+            'memory_total_gb': memory.total / (1024**3),
+            'memory_available_gb': memory.available / (1024**3),
+            'memory_usage_percent': memory.percent,
+            'disk_free_gb': disk.free / (1024**3),
+            'disk_usage_percent': disk.percent,
             'load_average': os.getloadavg() if hasattr(os, 'getloadavg') else None
         }
     except ImportError:
         return {
             'cpu_count': cpu_count(),
-            'memory_gb': 'unknown',
+            'cpu_usage_percent': 'unknown',
+            'memory_total_gb': 'unknown',
+            'memory_available_gb': 'unknown',
+            'memory_usage_percent': 'unknown',
             'disk_free_gb': 'unknown',
+            'disk_usage_percent': 'unknown',
             'load_average': None
         }
+
+def optimize_workers_based_on_resources(num_files: int, default_workers: int) -> int:
+    """Optimize worker count based on system resources."""
+    try:
+        resources = get_system_resources()
+        
+        # Reduce workers if system is under pressure
+        if isinstance(resources['cpu_usage_percent'], (int, float)):
+            if resources['cpu_usage_percent'] > 80:
+                default_workers = max(1, default_workers // 2)
+        
+        if isinstance(resources['memory_usage_percent'], (int, float)):
+            if resources['memory_usage_percent'] > 85:
+                default_workers = max(1, default_workers // 2)
+        
+        return default_workers
+    
+    except Exception:
+        return default_workers

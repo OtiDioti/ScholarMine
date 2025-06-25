@@ -1,123 +1,90 @@
 """
-Enhanced pattern definitions and configuration.
+Optimized pattern definitions with performance improvements.
 """
 
-# Enhanced regex patterns for better extraction
+# Highly optimized regex patterns
 PATTERNS = {
     'orcid': {
-        # Standard ORCID URL patterns
+        # Most common patterns first for better performance
         'orcid_url_https': r'https://orcid\.org/(\d{4}-\d{4}-\d{4}-\d{3}[\dX])',
         'orcid_url_http': r'http://orcid\.org/(\d{4}-\d{4}-\d{4}-\d{3}[\dX])',
-        'orcid_url_no_protocol': r'orcid\.org/(\d{4}-\d{4}-\d{4}-\d{3}[\dX])',
-        
-        # ORCID field patterns
+        'orcid_bare_id': r'(?:^|\s)(\d{4}-\d{4}-\d{4}-\d{3}[\dX])(?:\s|$)',
         'orcid_field_colon': r'ORCID\s*:\s*(?:https?://)?(?:www\.)?(?:orcid\.org/)?(\d{4}-\d{4}-\d{4}-\d{3}[\dX])',
-        'orcid_field_dash': r'ORCID\s*-\s*(?:https?://)?(?:www\.)?(?:orcid\.org/)?(\d{4}-\d{4}-\d{4}-\d{3}[\dX])',
-        'orcid_field_space': r'ORCID\s+(?:https?://)?(?:www\.)?(?:orcid\.org/)?(\d{4}-\d{4}-\d{4}-\d{3}[\dX])',
-        
-        # ORCID in parentheses
         'orcid_parentheses': r'\(\s*(?:ORCID:?\s*)?(?:https?://)?(?:www\.)?(?:orcid\.org/)?(\d{4}-\d{4}-\d{4}-\d{3}[\dX])\s*\)',
-        
-        # Bare ORCID IDs (more careful matching)
-        'orcid_bare_after_name': r'[A-Z][a-z]+\s+[A-Z][a-z]+.*?(\d{4}-\d{4}-\d{4}-\d{3}[\dX])',
-        'orcid_bare_standalone': r'(?:^|\s)(\d{4}-\d{4}-\d{4}-\d{3}[\dX])(?:\s|$)',
-        
-        # DOI-style ORCID references
-        'orcid_doi_style': r'(?:doi\.org/|DOI:?\s*)?(?:https?://)?orcid\.org/(\d{4}-\d{4}-\d{4}-\d{3}[\dX])',
+        'orcid_url_no_protocol': r'orcid\.org/(\d{4}-\d{4}-\d{4}-\d{3}[\dX])',
     },
     
     'google_scholar': {
-        # Full Google Scholar URLs
+        # Most reliable patterns first
+        'scholar_user_param': r'(https?://scholar\.google\.[a-z.]+/citations\?user=[A-Za-z0-9_-]+)',
         'scholar_full_https': r'(https://scholar\.google\.[a-z.]+/citations\?[^)\s,;]+)',
-        'scholar_full_http': r'(http://scholar\.google\.[a-z.]+/citations\?[^)\s,;]+)',
-        
-        # Scholar URLs without protocol
-        'scholar_no_protocol': r'(scholar\.google\.[a-z.]+/citations\?[^)\s,;]+)',
-        
-        # User-specific patterns
-        'scholar_user_param': r'(https?://scholar\.google\.[a-z.]+/citations\?user=[A-Za-z0-9_-]+[^)\s,;]*)',
-        'scholar_user_bare': r'(scholar\.google\.[a-z.]+/citations\?user=[A-Za-z0-9_-]+)',
-        
-        # Field patterns
-        'scholar_field_colon': r'(?:Google\s*Scholar\s*:?\s*)(https?://scholar\.google\.[a-z.]+/citations\?[^)\s,;]+)',
-        'scholar_field_profile': r'(?:Scholar\s*Profile\s*:?\s*)(https?://scholar\.google\.[a-z.]+/citations\?[^)\s,;]+)',
-        
-        # Parentheses patterns
+        'scholar_no_protocol': r'(scholar\.google\.[a-z.]+/citations\?user=[A-Za-z0-9_-]+)',
         'scholar_parentheses': r'\((https?://scholar\.google\.[a-z.]+/citations\?[^)]+)\)',
-        'scholar_parentheses_no_protocol': r'\((scholar\.google\.[a-z.]+/citations\?[^)]+)\)',
-        
-        # Clean patterns for common variations
-        'scholar_clean_url': r'(https?://scholar\.google\.[a-z.]+/citations\?(?:user=[A-Za-z0-9_-]+|hl=[a-z]+)(?:&(?:user=[A-Za-z0-9_-]+|hl=[a-z]+))*)',
+        'scholar_field_colon': r'(?:Google\s*Scholar\s*:?\s*)(https?://scholar\.google\.[a-z.]+/citations\?[^)\s,;]+)',
     }
 }
 
-# Configuration settings
+# Optimized configuration
 CONFIG = {
-    'max_entries_per_file': 20,      # Limit entries per file to prevent runaway extraction
-    'min_url_length': 15,            # Minimum URL length to consider valid
-    'max_url_length': 500,           # Maximum URL length to prevent malformed URLs
+    'max_entries_per_file': 10,      # Reduced for better performance
+    'min_url_length': 15,
+    'max_url_length': 300,           # Reduced to filter out malformed URLs
     'supported_extensions': ['.pdf'],
     'output_encoding': 'utf-8',
     
     # Validation settings
-    'validate_orcid_checksum': False,  # Enable ORCID checksum validation
-    'normalize_scholar_urls': True,    # Clean up Scholar URLs
-    'deduplicate_similar_urls': True,  # Remove very similar URLs
+    'validate_orcid_checksum': False,
+    'normalize_scholar_urls': True,
+    'deduplicate_similar_urls': True,
     
     # Processing limits
-    'max_text_length': 1000000,       # Skip files with excessive text (1MB)
-    'max_hyperlinks': 1000,           # Skip files with excessive hyperlinks
+    'max_text_length': 500000,       # Reduced for better performance
+    'max_hyperlinks': 100,           # Reduced limit
+    'min_text_per_page': 50,         # Minimum text to consider page useful
 }
 
-# Parallel processing configuration
-PARALLEL_CONFIG = {
-    'default_executor': 'process',     # 'process' or 'thread'
-    'max_workers_multiplier': 2,      # CPU cores * this value
-    'max_absolute_workers': 16,       # Hard limit
-    'chunk_size': 1,                  # Files per worker batch
-    'timeout_per_file': 60,           # Seconds per file
-    'memory_limit_mb': 512,           # Memory limit per worker
-    'retry_failed_files': False,      # Retry failed files with different method
-}
-
-# Performance profiles for different use cases
+# Performance profiles optimized for different use cases
 PERFORMANCE_PROFILES = {
     'fast': {
-        'description': 'Fast processing with minimal accuracy checks',
-        'pdf_library_preference': ['pymupdf', 'pypdf2', 'pdfplumber'],
+        'description': 'Maximum speed with basic accuracy',
+        'pdf_library_preference': ['pymupdf', 'pypdf2'],
         'max_workers': 8,
-        'timeout': 30,
-        'validate_urls': False,
-        'max_entries_per_file': 10,
-    },
-    'accurate': {
-        'description': 'Thorough processing with maximum accuracy',
-        'pdf_library_preference': ['pdfplumber', 'pymupdf', 'pypdf2'],
-        'max_workers': 4,
-        'timeout': 120,
-        'validate_urls': True,
-        'max_entries_per_file': 50,
+        'timeout_per_file': 30,
+        'max_entries_per_file': 5,
+        'early_termination': True,
+        'early_stop_threshold': 2,
+        'page_parallel': False,
+        'max_pages_to_process': 10,
+        'priority_pages': [0, 1],
+        'enable_cache': True,
+        'cache_size': 500,
     },
     'balanced': {
         'description': 'Balanced speed and accuracy',
-        'pdf_library_preference': ['pymupdf', 'pdfplumber', 'pypdf2'],
+        'pdf_library_preference': ['pymupdf', 'pdfplumber'],
         'max_workers': 6,
-        'timeout': 60,
-        'validate_urls': True,
-        'max_entries_per_file': 20,
-    }
-}
-
-# URL normalization rules
-URL_NORMALIZATION = {
-    'orcid': {
-        'force_https': True,
-        'remove_www': True,
-        'standardize_format': True,
+        'timeout_per_file': 60,
+        'max_entries_per_file': 10,
+        'early_termination': True,
+        'early_stop_threshold': 3,
+        'page_parallel': True,
+        'max_pages_to_process': 25,
+        'priority_pages': [0, 1, 2],
+        'enable_cache': True,
+        'cache_size': 1000,
     },
-    'scholar': {
-        'force_https': True,
-        'clean_parameters': True,
-        'remove_tracking': True,
+    'accurate': {
+        'description': 'Maximum accuracy with thorough processing',
+        'pdf_library_preference': ['pdfplumber', 'pymupdf'],
+        'max_workers': 4,
+        'timeout_per_file': 120,
+        'max_entries_per_file': 20,
+        'early_termination': False,
+        'early_stop_threshold': 5,
+        'page_parallel': True,
+        'max_pages_to_process': 50,
+        'priority_pages': [0, 1, 2, 3, 4],
+        'enable_cache': True,
+        'cache_size': 2000,
     }
 }
