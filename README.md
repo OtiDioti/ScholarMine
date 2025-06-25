@@ -6,7 +6,7 @@ A lightning-fast, intelligent tool that automatically finds and extracts researc
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Performance: Optimized](https://img.shields.io/badge/performance-optimized-brightgreen.svg)]()
 
-## 🎯 What Does This Tool Do? (For Non-Programmers)
+## 🎯 What Does This Tool Do?
 
 **Imagine you're hiring for a research position and receive 500 PDF applications.** Each applicant has included their ORCID ID (research identifier) and Google Scholar profile somewhere in their CV or cover letter. Manually finding and copying these links would take days of tedious work.
 
