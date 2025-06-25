@@ -1,4 +1,4 @@
-# PDF Applicant Information Extractor - Optimized Edition
+# ScholarMine: a PDF applicant information extractor
 
 A lightning-fast, intelligent tool that automatically finds and extracts researcher information (ORCID IDs, Google Scholar profiles) from PDF application files. Perfect for academic hiring committees, HR departments, and research administrators who need to process hundreds of applications quickly and accurately.
 
