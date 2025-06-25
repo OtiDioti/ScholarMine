@@ -82,8 +82,8 @@ If you don't have Python installed:
 ### Step 2: Download and Install the Tool
 ```bash
 # Download the tool
-git clone https://github.com/yourusername/pdf-extractor-optimized.git
-cd pdf-extractor-optimized
+git clone https://github.com/yourusername/ScholarMine.git
+cd ScholarMine
 
 # Install required components
 pip install -r requirements.txt
