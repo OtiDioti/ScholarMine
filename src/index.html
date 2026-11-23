@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' blob:; worker-src blob:; style-src 'unsafe-inline'; img-src 'self' data: blob:; connect-src blob: data:">
+<title>ScholarMine</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #66665f; --line: #deded8;
+    --accent: #2f5d8a; --ok: #2e7d4f; --warn: #a76100; --bad: #b3261e; --flag-bg: #fff5e0;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161615; --panel: #1f1f1d; --text: #ecece8; --muted: #a2a29a; --line: #34342f;
+      --accent: #8fb8e0; --ok: #6cc28f; --warn: #e0a64f; --bad: #f08a80; --flag-bg: #3a2f1a;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .lede { color: var(--muted); margin: 0 0 20px; }
+  #drop { display: block; border: 2px dashed var(--line); border-radius: 10px; background: var(--panel); padding: 32px 16px; text-align: center; cursor: pointer; }
+  #drop.over { border-color: var(--accent); }
+  #drop strong { display: block; font-size: 17px; margin-bottom: 4px; }
+  #drop span { color: var(--muted); }
+  #picker { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  #progress { margin-top: 16px; }
+  #progress progress { width: 100%; }
+  #results { margin-top: 24px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 12px; }
+  #summary { font-weight: 600; margin-right: auto; }
+  button.action { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--text); cursor: pointer; }
+  button.action.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+  table { border-collapse: collapse; width: 100%; min-width: 1000px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  th { font-size: 13px; color: var(--muted); font-weight: 600; }
+  tr.needs-review td { background: var(--flag-bg); }
+  tbody.only-review tr:not(.needs-review) { display: none; }
+  button.file { font: inherit; color: var(--accent); background: none; border: 0; padding: 0; text-align: left; cursor: pointer; text-decoration: underline; word-break: break-all; }
+  .id { display: flex; gap: 6px; align-items: center; }
+  .id input { font: 13px ui-monospace, "Cascadia Mono", Menlo, monospace; flex: 0 0 auto; width: 23ch; padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: var(--text); }
+  .id input.invalid { border-color: var(--bad); }
+  .id a { color: var(--accent); white-space: nowrap; font-size: 13px; }
+  .badge { font-size: 13px; white-space: nowrap; }
+  .badge[data-status="ok"] { color: var(--ok); }
+  .badge[data-status="incomplete"] { color: var(--warn); }
+  .badge[data-status="nothing found"], .badge[data-status="no text (scanned?)"], .badge[data-status="unreadable"] { color: var(--bad); }
+  .flag { font-size: 13px; white-space: nowrap; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  details ul { margin: 6px 0 0; padding-left: 18px; font-size: 13px; color: var(--muted); max-width: 380px; }
+  footer { margin-top: 24px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>ScholarMine</h1>
+  <p class="lede">Finds each applicant's ORCID iD and Google Scholar profile. Files are read on this computer only; nothing is uploaded or stored.</p>
+
+  <label id="drop" for="picker">
+    <strong>Drop applicant PDFs here</strong>
+    <span>or click to choose files</span>
+    <input id="picker" type="file" accept=".pdf,application/pdf" multiple>
+  </label>
+
+  <div id="progress" hidden>
+    <div id="progress-text"></div>
+    <progress id="progress-bar" max="1" value="0"></progress>
+  </div>
+
+  <section id="results" hidden>
+    <div class="toolbar">
+      <span id="summary"></span>
+      <label><input id="only-review" type="checkbox"> only rows to check</label>
+      <button id="export-xlsx" class="action primary">Download Excel</button>
+      <button id="export-csv" class="action">Download CSV</button>
+      <button id="clear" class="action">Clear</button>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>File</th><th>ORCID</th><th>Google Scholar</th><th>Status</th><th>Check</th><th>Details</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>Highlighted rows need a person to look at them. Edit an identifier by pasting the correct URL or iD. ScholarMine · PDF reading by pdf.js (Apache-2.0).</footer>
+</main>
+<!-- PDFJS_WORKER -->
+<!-- APP -->
+</body>
+</html>

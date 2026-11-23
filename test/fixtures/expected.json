@@ -1,0 +1,18 @@
+{
+  "01_plain.pdf": {"orcid": "0000-0002-1825-0097", "scholar": "AbCdEfGhIjKl", "status": "ok", "review": false},
+  "02_unicode_hyphen.pdf": {"orcid": "0000-0002-1825-0097", "scholar": "", "status": "incomplete", "review": false},
+  "03_linebreak.pdf": {"orcid": "0000-0002-1825-0097", "scholar": "AbCdEfGhIjKl", "status": "ok", "review": false},
+  "04_hl_first.pdf": {"orcid": "", "scholar": "AbCdEfGhIjKl", "status": "incomplete", "review": false},
+  "05_same_profile_twice.pdf": {"orcid": "", "scholar": "AbCdEfGhIjKl", "status": "incomplete", "review": false},
+  "06_bad_checksum.pdf": {"orcid": "", "scholar": "", "status": "nothing found", "review": false},
+  "07_coauthors.pdf": {"orcid": "0000-0002-1825-0097", "scholar": "AbCdEfGhIjKl", "status": "ok", "review": false},
+  "08_link_only.pdf": {"orcid": "0000-0002-1825-0097", "scholar": "AbCdEfGhIjKl", "status": "ok", "review": false},
+  "09_UPPER.PDF": {"orcid": "0000-0002-1825-0097", "scholar": "", "status": "incomplete", "review": false},
+  "10_hl_only.pdf": {"orcid": "", "scholar": "", "status": "nothing found", "review": true},
+  "11_bundle_with_reference.pdf": {"orcid": "0000-0001-5109-3700", "scholar": "", "status": "incomplete", "review": true},
+  "12_scanned.pdf": {"orcid": "", "scholar": "", "status": "no text (scanned?)", "review": true},
+  "13_x_checksum.pdf": {"orcid": "0000-0002-1000-000X", "scholar": "", "status": "incomplete", "review": false},
+  "14_uk_amp.pdf": {"orcid": "", "scholar": "AbCdEfGhIjKl", "status": "incomplete", "review": false},
+  "15_corrupt.pdf": {"orcid": "", "scholar": "", "status": "unreadable", "review": true},
+  "16_en_dash.pdf": {"orcid": "0000-0002-1825-0097", "scholar": "", "status": "incomplete", "review": false}
+}
