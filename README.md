@@ -13,9 +13,10 @@ The earlier Python command-line version is kept on the
 
 ## Use
 
-1. Open `dist/scholarmine.html` in Chrome or Edge (Firefox is untested). It runs
-   straight from disk and needs no installation, so the file can be copied to
-   any computer.
+1. Download `scholarmine.html` from the latest
+   [release](../../releases/latest) (or build it, below) and open it in Chrome or
+   Edge (Firefox is untested). It runs straight from disk and needs no
+   installation, so the file can be copied to any computer.
 2. Drop the applicants' PDFs (one per applicant) on the page, or click to pick them.
 3. Review the table:
    - Highlighted rows need a person to look at them; tick **checked** once done.
@@ -38,8 +39,10 @@ npm run build        # writes dist/scholarmine.html (about 1.6 MB, self-containe
 ## Test
 
 ```
-npm test                                                                   # logic and export tests in Node
-node test/e2e.mjs test/fixtures --expected test/fixtures/expected.json   # the built page in headless Chrome
+npm test               # logic and export tests in Node
+npm run e2e            # the built page in headless Chrome (run npm run build first)
+npm run typecheck      # TypeScript checks the JSDoc types
+npm run format:check   # Prettier
 ```
 
 `node test/e2e.mjs <folder> --screenshot out.png --expand-all` runs any folder of

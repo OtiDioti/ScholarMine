@@ -56,7 +56,9 @@ const CLOSE_CALL = 3;
  * @returns {Result}
  */
 export function analyse(pages) {
+  /** @type {string[]} */
   const notes = [];
+  /** @type {Candidate[]} */
   const candidates = [];
   let review = false;
 
@@ -131,7 +133,9 @@ function scanPage(page, index) {
   const letter = RECOMMENDATION.test(text);
   const heading = PUBLICATION_HEADING.exec(text);
   const publicationsStart = heading ? heading.index + heading[0].length : Infinity;
+  /** @type {string[]} */
   const notes = [];
+  /** @type {Candidate[]} */
   const candidates = [];
   let review = false;
   const where = `page ${index + 1}`;
@@ -187,7 +191,13 @@ function scanPage(page, index) {
   return { candidates, notes, review };
 }
 
-/** @param {string} url @param {number} index @param {string | null} excluded @param {string[]} notes */
+/**
+ * @param {string} url
+ * @param {number} index
+ * @param {string | null} excluded
+ * @param {string[]} notes
+ * @returns {Candidate[]}
+ */
 function linkCandidates(url, index, excluded, notes) {
   const where = `page ${index + 1}`;
   const orcid = ORCID_IN_URL.exec(url);
@@ -235,6 +245,7 @@ function pageScore(index) {
  * @param {string[]} notes
  */
 function choose(all, kind, label, notes) {
+  /** @type {Map<string, {id: string, occurrences: Candidate[]}>} */
   const byId = new Map();
   for (const candidate of all.filter((c) => c.kind === kind)) {
     const seen = byId.get(candidate.id) ?? { id: candidate.id, occurrences: [] };
@@ -252,7 +263,9 @@ function choose(all, kind, label, notes) {
       excluded: usable.length === 0 ? entry.occurrences[0].excluded : null,
     };
   });
-  const usable = ranked.filter((r) => r.excluded === null).sort((a, b) => b.score - a.score || a.best.page - b.best.page);
+  const usable = ranked
+    .filter((r) => r.excluded === null)
+    .sort((a, b) => b.score - a.score || a.best.page - b.best.page);
   const setAside = ranked.filter((r) => r.excluded !== null);
 
   for (const entry of setAside) {
@@ -273,6 +286,7 @@ function choose(all, kind, label, notes) {
 
 /** "ORCID" written somewhere with no valid iD right after it. @param {Page[]} pages */
 function orcidLabelsWithoutId(pages) {
+  /** @type {string[]} */
   const notes = [];
   pages.forEach((page, index) => {
     const text = normalise(page.text);

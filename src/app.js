@@ -2,7 +2,7 @@
 // on this computer, and the results appear in a table they can check, correct
 // and export. Nothing is sent anywhere and nothing is kept after closing.
 
-import * as pdfjs from "pdfjs-dist/build/pdf.mjs";
+import * as pdfjs from "pdfjs-dist";
 
 import { orcidChecksumOk, STATUS } from "./extract.js";
 import { toCsv, toXlsx } from "./export.js";

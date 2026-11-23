@@ -1,14 +1,24 @@
 {
   "name": "scholarmine",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
     "test": "node --test test/*.test.mjs",
-    "e2e": "node test/e2e.mjs"
+    "e2e": "node test/e2e.mjs test/fixtures --expected test/fixtures/expected.json",
+    "typecheck": "tsc -p .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "prettier": {
+    "printWidth": 120
   },
   "devDependencies": {
+    "@types/node": "22.20.5",
     "esbuild": "0.28.2",
-    "pdfjs-dist": "6.5.438"
+    "pdfjs-dist": "6.5.438",
+    "prettier": "3.9.10",
+    "typescript": "6.0.3"
   }
 }

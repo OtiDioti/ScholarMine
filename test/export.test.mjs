@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { toCsv, toXlsx } from "../src/export.js";
 
 test("CSV neutralises formulas and quotes awkward cells", async () => {
-  const blob = toCsv(["File", "Notes"], [["=HYPERLINK(\"http://evil\")", 'say "hi", twice\nok']]);
+  const blob = toCsv(["File", "Notes"], [['=HYPERLINK("http://evil")', 'say "hi", twice\nok']]);
   // Blob.text() would strip the BOM, which is part of what is being tested.
   const text = new TextDecoder("utf-8", { ignoreBOM: true }).decode(await blob.arrayBuffer());
   assert.equal(text, '\uFEFFFile,Notes\r\n"\'=HYPERLINK(""http://evil"")","say ""hi"", twice\nok"\r\n');

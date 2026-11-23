@@ -30,7 +30,9 @@ export function toXlsx(header, rows, linkColumns) {
     const xmlCells = cells.map((value, c) => xlsxCell(value, r, c, r > 0 && linkColumns.has(c)));
     return `<row r="${r + 1}">${xmlCells.join("")}</row>`;
   });
-  const widths = header.map((_, c) => `<col min="${c + 1}" max="${c + 1}" width="${c === 0 ? 40 : 30}" customWidth="1"/>`);
+  const widths = header.map(
+    (_, c) => `<col min="${c + 1}" max="${c + 1}" width="${c === 0 ? 40 : 30}" customWidth="1"/>`,
+  );
   const sheet =
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
     `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
@@ -124,14 +126,29 @@ export function zipStored(files) {
     const data = encoder.encode(content);
     const crc = crc32(data);
     const local = header(30, [
-      [0, 0x04034b50, 4], [4, 20, 2], [8, 0, 2], [10, 0, 2], [12, 0x21, 2],
-      [14, crc, 4], [18, data.length, 4], [22, data.length, 4], [26, nameBytes.length, 2],
+      [0, 0x04034b50, 4],
+      [4, 20, 2],
+      [8, 0, 2],
+      [10, 0, 2],
+      [12, 0x21, 2],
+      [14, crc, 4],
+      [18, data.length, 4],
+      [22, data.length, 4],
+      [26, nameBytes.length, 2],
     ]);
     chunks.push(local, nameBytes, data);
     central.push(
       header(46, [
-        [0, 0x02014b50, 4], [4, 20, 2], [6, 20, 2], [10, 0, 2], [14, 0x21, 2],
-        [16, crc, 4], [20, data.length, 4], [24, data.length, 4], [28, nameBytes.length, 2], [42, offset, 4],
+        [0, 0x02014b50, 4],
+        [4, 20, 2],
+        [6, 20, 2],
+        [10, 0, 2],
+        [14, 0x21, 2],
+        [16, crc, 4],
+        [20, data.length, 4],
+        [24, data.length, 4],
+        [28, nameBytes.length, 2],
+        [42, offset, 4],
       ]),
       nameBytes,
     );
@@ -139,7 +156,13 @@ export function zipStored(files) {
   }
   const centralSize = central.reduce((sum, part) => sum + part.length, 0);
   const count = Object.keys(files).length;
-  const end = header(22, [[0, 0x06054b50, 4], [8, count, 2], [10, count, 2], [12, centralSize, 4], [16, offset, 4]]);
+  const end = header(22, [
+    [0, 0x06054b50, 4],
+    [8, count, 2],
+    [10, count, 2],
+    [12, centralSize, 4],
+    [16, offset, 4],
+  ]);
   return concat([...chunks, ...central, end]);
 }
 

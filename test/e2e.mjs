@@ -3,7 +3,8 @@
 // Usage: node test/e2e.mjs <pdf-dir> [--expected file.json] [--screenshot out.png [--expand-all]] [--timeout s]
 
 import { spawn } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -42,10 +43,14 @@ try {
   const { sessionId } = await cdp.send("Target.attachToTarget", { targetId, flatten: true });
   const send = (/** @type {string} */ method, params = {}) => cdp.send(method, params, sessionId);
 
+  /** @type {string[]} */
   const requests = [];
+  /** @type {string[]} */
   const errors = [];
   cdp.on("Network.requestWillBeSent", (event) => requests.push(event.request.url));
-  cdp.on("Runtime.exceptionThrown", (event) => errors.push(event.exceptionDetails.exception?.description ?? event.exceptionDetails.text));
+  cdp.on("Runtime.exceptionThrown", (event) =>
+    errors.push(event.exceptionDetails.exception?.description ?? event.exceptionDetails.text),
+  );
   cdp.on("Log.entryAdded", (event) => event.entry.level === "error" && errors.push(event.entry.text));
   await send("Network.enable");
   await send("Runtime.enable");
@@ -66,7 +71,10 @@ try {
       Number(option("--timeout") ?? 600) * 1000,
     );
   } catch (error) {
-    const state = await evaluate(send, "document.getElementById('progress-text').textContent + ' | rows: ' + document.querySelectorAll('#rows tr').length");
+    const state = await evaluate(
+      send,
+      "document.getElementById('progress-text').textContent + ' | rows: ' + document.querySelectorAll('#rows tr').length",
+    );
     console.log(`stalled at: ${state}\npage errors: ${errors.join("\n  ") || "none"}`);
     throw error;
   }
@@ -86,7 +94,9 @@ try {
   console.log(`summary line: ${await evaluate(send, "document.getElementById('summary').textContent")}`);
 
   const outside = requests.filter((url) => !/^(file|blob|data):/.test(url));
-  console.log(`network requests leaving the machine: ${outside.length}${outside.length ? ` -> ${outside.join(", ")}` : ""}`);
+  console.log(
+    `network requests leaving the machine: ${outside.length}${outside.length ? ` -> ${outside.join(", ")}` : ""}`,
+  );
   console.log(`page errors: ${errors.length}${errors.length ? `\n  ${errors.join("\n  ")}` : ""}`);
 
   let failures = 0;
@@ -115,13 +125,20 @@ try {
     writeFileSync(screenshot, Buffer.from(data, "base64"));
     console.log(`screenshot: ${screenshot}`);
   }
+  // A clean shutdown lets Chrome's helper processes finish with the profile.
+  await cdp.send("Browser.close").catch(() => {});
   cdp.close();
   process.exitCode = failures > 0 || errors.length > 0 || outside.length > 0 ? 1 : 0;
 } finally {
-  chrome.kill();
-  await new Promise((done) => chrome.once("exit", done));
-  // Chrome can still be flushing its profile right after exiting.
-  rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  if (chrome.exitCode === null && chrome.signalCode === null) {
+    chrome.kill();
+    await new Promise((done) => chrome.once("exit", done));
+  }
+  // Helper processes can outlive the browser for a moment; a leftover temp
+  // profile isn't a test failure.
+  await rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }).catch((error) =>
+    console.warn(`could not remove ${profile}: ${error.message}`),
+  );
 }
 
 /** @param {string} url */

@@ -31,15 +31,15 @@ export async function readPdf(pdfjs, data) {
   }
 }
 
-/** @param {Array<{str?: string, hasEOL?: boolean}>} items */
+/** @param {Array<object>} items - text items, mixed with marked-content markers that carry no text */
 function joinItems(items) {
   const parts = [];
   for (const item of items) {
-    if (typeof item.str !== "string") {
+    if (!("str" in item) || typeof item.str !== "string") {
       continue;
     }
     parts.push(item.str);
-    if (item.hasEOL) {
+    if ("hasEOL" in item && item.hasEOL) {
       parts.push("\n");
     }
   }
